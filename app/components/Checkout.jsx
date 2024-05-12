@@ -1,7 +1,10 @@
 import React, { useState } from "react";
+import { product } from "../libs/product";
+import Link from "next/link";
 
 const Checkout = () => {
   const [quantity, setQuantity] = useState(1);
+  const [paymentUrl, setPaymentUrl] = useState("")
 
   const decreaseQuantity = () => {
     setQuantity((prevState) => (quantity > 1 ? prevState - 1 : null));
@@ -11,12 +14,64 @@ const Checkout = () => {
     setQuantity((prevState) => prevState + 1);
   };
 
+  const handleChange = (event) => {
+    setQuantity(parseInt(event.target.value));
+  };
+
   const checkout = async () => {
-    alert("Checkout SNAP! 🌟")
+    const data = {
+      id: product.id,
+      productName: product.name,
+      price: product.price,
+      quantity: quantity,
+    };
+
+    const response = await fetch("api/tokenizer", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+
+    const requestData = await response.json();
+    window.snap.pay(requestData.token);
   };
 
   const generatePaymentLink = async () => {
-    alert("Checkout Payment Link! 🔥")
+    const secret = process.env.NEXT_PUBLIC_SECRET;
+    const encodedSecret = Buffer.from(secret).toString("base64");
+    const basicAuth = `Basic ${encodedSecret}`;
+
+    let data = {
+      item_details: [
+        {
+          id: product.id,
+          name: product.name,
+          price: product.price,
+          quantity: quantity, 
+        },
+      ],
+      transaction_details: {
+        order_id: product.id,
+        gross_amount: product.price * quantity
+      }
+    };
+
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API}/v1/payment-links`,
+      {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          Authorization: basicAuth,
+        },
+        body: JSON.stringify(data),
+      }
+    );
+
+    const paymentLink = await response.json()
+    console.log(paymentLink)
+    setPaymentUrl(paymentLink.payment_url)
+
   };
 
   return (
@@ -35,7 +90,7 @@ const Checkout = () => {
             id="quantity"
             value={quantity}
             className="h-10 w-16 text-black border-transparent text-center"
-            onChange={quantity}
+            onChange={handleChange}
           />
 
           <button
@@ -58,6 +113,9 @@ const Checkout = () => {
       >
         Create Payment Link
       </button>
+      <div className="text-black underline italic">
+        <Link href={paymentUrl} target="_blank">{paymentUrl} </Link>
+      </div>
     </>
   );
 };
